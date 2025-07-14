@@ -85,9 +85,9 @@ Three attempts to get trade recommendations are made:
 - Tool-using: The role-based prompts along with all the tools described by the MCP Server.
 
 The tool-using transcript is produced at each interactions, and then re-output
-in its final state at the end of the char.  During the interaction, if the LLM
-mentions 'Would you like me to' or 'look up specific players', a canned user
-response is sent saying (essentially) 'Yes, please do.'
+in its final state at the end of the char.  During the interaction, two canned 
+prompts are used to first ask for general trade advice and then for specific
+trade candidates, targets and partners.
 
 The tool-using chat will cut off after 10 messages have been sent (roughly, as
 Haiku sometimes sends multi-part messages).  This can be changed in the following

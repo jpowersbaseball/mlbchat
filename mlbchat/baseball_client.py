@@ -8,6 +8,9 @@ from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamablehttp_client
 import asyncio
 
+# mlbchat imports
+from . import helpers
+
 def simpleton_trade(
     team_name: str,
     credentials: dict
@@ -25,9 +28,9 @@ def simpleton_trade(
     """
     
     # Claude credentials and settings
-    claude_api_key = credentials['api_key']
-    claude_version = credentials['version']
-    claude_model = credentials['model']
+    claude_api_key = credentials['claude']['api_key']
+    claude_version = credentials['claude']['version']
+    claude_model = credentials['claude']['model']
 
     chatclient = anthropic.Anthropic(api_key=claude_api_key)
 
@@ -38,7 +41,7 @@ def simpleton_trade(
       messages=[
         {
           "role": "user",
-          "content": [{"type": "text", "text": "What trades should the " + team_name + " make before the deadline?"}]
+          "content": [{"type": "text", "text": helpers.getBrainDeadPrompt("trades", team_name)}]
         }
       ]
     )
@@ -62,9 +65,9 @@ def role_based_trade(
     """
     
     # Claude credentials and settings
-    claude_api_key = credentials['api_key']
-    claude_version = credentials['version']
-    claude_model = credentials['model']
+    claude_api_key = credentials['claude']['api_key']
+    claude_version = credentials['claude']['version']
+    claude_model = credentials['claude']['model']
 
     chatclient = anthropic.Anthropic(api_key=claude_api_key)
 
@@ -72,11 +75,11 @@ def role_based_trade(
       model=claude_model,
       max_tokens=1000,
       temperature=0.15,
-      system="You are the General Manager of the " + team_name + ".  You have been a baseball executive for 25 years.  Prior to that, you were a scout and involved in managing minor league teams.  Your analysis of baseball players and teams is largely based on modern statistical models.  While you are mindful of the payroll, your primary goal is to put a strong roster on the field and keep young talent within the organization.",
+      system=helpers.getRoleBasedSystemPrompt("GM", team_name),
       messages=[
         {
           "role": "user",
-          "content": [{"type": "text", "text": "The trade deadline is coming up in the next few weeks.  Please evaluate the " + team_name + ".  What are their strengths and weaknesses?  Should they be aggressive in trades?  Please list some candidate trades involving specific players and trade partners that would be appropriate for the team in its current situation."}]
+          "content": [{"type": "text", "text": helpers.getRoleBasedPrompt("GM", "trades", team_name)}]
         }
       ]
     )
@@ -155,16 +158,16 @@ def tools_trade(
         str: Claude's response contents
     """
     
-    system_prompt = "You are the General Manager of the " + team_name + ".  You have been a baseball executive for 25 years.  Prior to that, you were a scout and involved in managing minor league teams.  Your analysis of baseball players and teams is largely based on modern statistical models.  While you are mindful of the payroll, your primary goal is to put a strong roster on the field and keep young talent within the organization."
+    system_prompt = helpers.getRoleBasedSystemPrompt("GM", team_name)
 
     # Claude credentials and settings
-    claude_api_key = credentials['api_key']
-    claude_version = credentials['version']
-    claude_model = credentials['model']
+    claude_api_key = credentials['claude']['api_key']
+    claude_version = credentials['claude']['version']
+    claude_model = credentials['claude']['model']
 
     chatclient = anthropic.Anthropic(api_key=claude_api_key)
     
-    mcptools = asyncio.run(getToolsFromMCP("http://localhost:8080/mcp"))
+    mcptools = asyncio.run(getToolsFromMCP(credentials['baseballmcp']['server']))
     print("----------------------- Tools -------------------------")
     print(str([curtool['name'] for curtool in mcptools]))
     message_traffic = [
@@ -173,16 +176,18 @@ def tools_trade(
         "content": [
           {
             "type": "text",
-            "text": "The trade deadline is coming up in the next few weeks.  Please evaluate the " + team_name + ".  What are their strengths and weaknesses?  Should they be aggressive in trades?  Please list some candidate trades involving specific players and trade partners that would be appropriate for the team in its current situation."
+            "text": helpers.getFirstStepToolPrompt(team_name)
           }
         ]
       }
     ]
     done = False
     queries_spent = 0
+    canned_queries = 1
     while not done:
-        print("----------------------- Messages -------------------------")
+        print("----------------------- Messages After " + str(queries_spent) + " Queries -------------------------")
         print(json.dumps(message_traffic, indent=2))
+        # Exceeded our limit?
         queries_spent += 1
         response = chatclient.messages.create(
           model=claude_model,
@@ -192,36 +197,28 @@ def tools_trade(
           messages=message_traffic,
           tools=mcptools
         )
-        print("LLM Responded with " + str(len(response.content)) + " answers")
-        # Exceeded our limit
-        if queries_spent > 10:
-            done = 1
-        # Regular text response, nothing fancy - if it asks about looking up more specifics, respond yes, otherwise terminate
-        elif response.content[0].type == 'text' and len(response.content) == 1:
-            message_traffic.append({"role": "assistant", "content": [{"type": "text", "text": response.content[0].text}]})
-            msgtext = response.content[0].text.lower()
-            if 'look up specific players' in msgtext or 'would you like me to' in msgtext or 'you would like me to' in msgtext:
-                message_traffic.append({"role": "user", "content": [{"type": "text", "text": "Yes, please give me more specifics on which players are good trade candidates, and which trade partners might be interested in them."}]})
+        for curContent in response.content:
+            if curContent.type == 'text':
+                message_traffic.append({"role": "assistant", "content": [{"type": "text", "text": curContent.text}]})
+            elif curContent.type == 'tool_use':
+                message_traffic.append({"role": "assistant", "content": [{"type": "tool_use", "name": curContent.name, "id": curContent.id, "input": curContent.input}]})
+                toolresult = asyncio.run(callMCPTool(credentials['baseballmcp']['server'], curContent.name, curContent.input))
+                response_content = []
+                for curresultcontent in toolresult.content:
+                    msgdict = {"type": curresultcontent.type, "text": curresultcontent.text}
+                    response_content.append(msgdict)
+                message_traffic.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": curContent.id, "content": response_content}]})
+        if message_traffic[len(message_traffic) - 1]['role'] == 'assistant' and message_traffic[len(message_traffic) - 1]['content'][0]['type'] == 'text':
+            if canned_queries == 1:
+                canned_queries += 1
+                message_traffic.append({"role": "user", "content": [{"type": "text", "text": helpers.getSecondStepToolPrompt(team_name)}]})
+            elif canned_queries == 2:
+                canned_queries += 1
+                message_traffic.append({"role": "user", "content": [{"type": "text", "text": helpers.getThirdStepToolPrompt(team_name)}]})
             else:
-                done = 1
-        # Might want a tool call
-        else:
-            for curcontent in response.content:
-                if curcontent.type == 'text':
-                    message_traffic.append({"role": "assistant", "content": [{"type": "text", "text": curcontent.text}]})
-                elif curcontent.type == 'tool_use':
-                    message_traffic.append({"role": "assistant", "content": [{"type": "tool_use", "name": curcontent.name, "id": curcontent.id, "input": curcontent.input}]})
-#                    print("----------------------- Tool Call Request ------------------------")
-#                    print(curcontent.name)
-#                    print(json.dumps(curcontent.input, indent=2))
-                    toolresult = asyncio.run(callMCPTool("http://localhost:8080/mcp", curcontent.name, curcontent.input))
-#                    print("----------------------- Tool Call Result -------------------------")
-                    msgcontent = []
-                    for curresultcontent in toolresult.content:
-                        msgdict = {"type": curresultcontent.type, "text": curresultcontent.text}
-                        msgcontent.append(msgdict)
-#                    print(json.dumps(msgcontent, indent=2))
-                    message_traffic.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": curcontent.id, "content": msgcontent}]})
+                done = True
+        if queries_spent > 20:
+            done = True
 
     print("----------------------- Final Result -------------------------")
     return json.dumps(message_traffic, indent=2)

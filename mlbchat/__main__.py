@@ -71,14 +71,14 @@ def main(): # type: () -> None
         
     if lesArgs.operation == 'trades' and hasattr(lesArgs, 'team') and 'claude' in configs:
         print('================ Simpleton ==================')
-        print(bc.simpleton_trade(lesArgs.team, configs['claude']))
+        print(bc.simpleton_trade(lesArgs.team, configs))
         print('================ Role-based ==================')
-        print(bc.role_based_trade(lesArgs.team, configs['claude']))
+        print(bc.role_based_trade(lesArgs.team, configs))
         print('================ Tool-use ==================')
-        print(bc.tools_trade(lesArgs.team, configs['claude']))
+        print(bc.tools_trade(lesArgs.team, configs))
 
     if lesArgs.operation == 'testmcp':
         asyncio.run(minimal_example())
 
 if __name__ == '__main__':
-  main()
+    main()
