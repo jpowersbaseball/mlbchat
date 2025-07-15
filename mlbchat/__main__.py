@@ -14,6 +14,9 @@ from mcp.client.streamable_http import streamablehttp_client
 import asyncio
 
 # mlbchat imports
+from mlbchat.logger_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger()
 import mlbchat.baseball_client as bc
 
 # Get a list of current Claude models: https://docs.anthropic.com/en/docs/about-claude/models/overview
@@ -26,11 +29,10 @@ async def minimal_example():
             await session.initialize()
             
             tools = await session.list_tools()
-#            print("Tools:", [tool.name for tool in tools.tools])
-            print("Tools:", str(tools.tools))
+#            logger.info("Tools:", [tool.name for tool in tools.tools])
+            logger.info("Tools:", str(tools.tools))
 
 def main(): # type: () -> None
-    logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.ERROR)
     leParser = argparse.ArgumentParser()
     leParser.add_argument('--operation', help='What do you want MLB chat to do? (test|trades)')
     leParser.add_argument('--config', help='A JSON file with settings, credentials, etc.')
@@ -38,7 +40,7 @@ def main(): # type: () -> None
     lesArgs = leParser.parse_args()
   
     if not hasattr(lesArgs, 'operation') or lesArgs.operation is None:
-        logging.error('MLB chat needs to know what to do.')
+        logger.error('MLB chat needs to know what to do.')
         leParser.print_help()
         sys.exit(2)
   
@@ -49,7 +51,7 @@ def main(): # type: () -> None
   
     if lesArgs.operation == 'test':
         if 'claude' not in configs:
-            logging.error('No credential found for Claude')
+            logger.error('No credential found for Claude')
             sys.exit(2)
         claude_api_key = configs['claude']['api_key']
         claude_version = configs['claude']['version']
@@ -67,15 +69,15 @@ def main(): # type: () -> None
             }
           ]
         )
-        print(message.content[0].text)
+        logger.info(message.content[0].text)
         
     if lesArgs.operation == 'trades' and hasattr(lesArgs, 'team') and 'claude' in configs:
-        print('================ Simpleton ==================')
-        print(bc.simpleton_trade(lesArgs.team, configs))
-        print('================ Role-based ==================')
-        print(bc.role_based_trade(lesArgs.team, configs))
-        print('================ Tool-use ==================')
-        print(bc.tools_trade(lesArgs.team, configs))
+        logger.info('================ Simpleton ==================')
+        logger.info(bc.simpleton_trade(lesArgs.team, configs))
+        logger.info('================ Role-based ==================')
+        logger.info(bc.role_based_trade(lesArgs.team, configs))
+        logger.info('================ Tool-use ==================')
+        logger.info(bc.tools_trade(lesArgs.team, configs))
 
     if lesArgs.operation == 'testmcp':
         asyncio.run(minimal_example())

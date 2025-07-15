@@ -1,3 +1,7 @@
+# mlbchat imports
+from mlbchat.logger_config import get_logger
+logger = get_logger()
+
 def getBrainDeadPrompt(
     topic: str,
     team_name: str
