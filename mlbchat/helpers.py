@@ -1,3 +1,11 @@
+# standard Python imports
+import os
+import csv
+from collections import Counter
+
+# 3rd-party imports
+from typing import List, Optional
+
 # mlbchat imports
 from mlbchat.logger_config import get_logger
 logger = get_logger()
@@ -114,3 +122,94 @@ def getThirdStepToolPrompt(
     """
     
     return "Let's keep exploring other potential trade partners.  Please continue to verify that the trade targets are currently on the roster of the trade partners that you mention, and that the potential trade would not be rejected by the other team based on common sense."
+
+def loadCSV(
+    inpath: str
+):
+    """
+    Loads the rows of a CSV file into a list of dictionaries
+    with each column header as a key.
+
+      Args:
+          inpath (str): the location on disk to read the file
+    """
+
+    retdata = []
+    if os.path.isfile(inpath):
+        with open(inpath, 'r', encoding='utf-8') as infile:
+            retdata = [{colname: str(cellvalue) for colname, cellvalue in row.items()}
+                       for row in csv.DictReader(infile, skipinitialspace=True)]
+
+    return retdata
+  
+def writeCSV(
+    outpath: str,
+    data: List,
+    headers: Optional[List] = None): # type: (str, [], []) -> None
+    """
+    Writes a list of dictionaries to a CSV file.  Each dictionary
+    must have exactly the headers as keys.
+
+    Args:
+        outpath (str): the location on disk to write the file
+        data (List): the list of dictionaries that will become rows
+        headers (Optional[List]): the list of column headers.  If none is provided, use the list of keys from the first dictionary in data.
+    """
+
+    useheaders = headers
+    if headers is None or len(headers) == 0:
+        useheaders = list(data[0].keys())
+
+    with open(outpath, 'w', encoding='utf-8', newline='') as outfile:
+        writer = csv.DictWriter(outfile, fieldnames=useheaders)
+        writer.writeheader()
+        writer.writerows(data)
+
+def reportTradeCSV(
+    inpath: str
+):
+    """
+    Analyzes a proposed trade spreadsheet and logs various metrics
+    Date,Model,Prompt Type,Focus Team,Player,For Real?,To Team,For Real?,Trade For,For Real?,Score
+
+    Args:
+        inpath (str): the location on disk to read the trade data from
+    """
+    
+    trade_data = loadCSV(inpath)
+    
+    playerCounts = Counter()
+    fromTeamCounts = Counter()
+    toTeamCounts = Counter()
+    teamCounts = Counter()
+    
+    for curtrade in trade_data:
+        fromTeam = curtrade['Focus Team'].strip()
+        if len(fromTeam) > 5:
+            fromTeamCounts[fromTeam] += 1
+            teamCounts[fromTeam] += 1
+        fromPlayers = curtrade['Player'].split(',')
+        for curPlayer in fromPlayers:
+            cleanPlayer = curPlayer.strip()
+            if len(cleanPlayer) > 5:
+                playerCounts[cleanPlayer] += 1
+        toTeam = curtrade['To Team'].strip()
+        if len(toTeam) > 5:
+            toTeamCounts[toTeam] += 1
+            teamCounts[toTeam] += 1
+        toPlayers = curtrade['Trade For'].split(',')
+        for curPlayer in toPlayers:
+            cleanPlayer = curPlayer.strip()
+            if len(cleanPlayer) > 5:
+                playerCounts[cleanPlayer] += 1
+        
+    logger.info("Teams: ")
+    logger.info(str(teamCounts.most_common()))
+    logger.info("From Teams: ")
+    logger.info(str(fromTeamCounts.most_common()))
+    logger.info("To Teams: ")
+    logger.info(str(toTeamCounts.most_common()))
+    logger.info("Players: ")
+    logger.info(str(playerCounts.most_common()))
+    
+    

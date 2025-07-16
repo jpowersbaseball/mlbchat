@@ -18,6 +18,7 @@ from mlbchat.logger_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger()
 import mlbchat.baseball_client as bc
+import mlbchat.helpers as helpers
 
 # Get a list of current Claude models: https://docs.anthropic.com/en/docs/about-claude/models/overview
 
@@ -36,6 +37,7 @@ def main(): # type: () -> None
     leParser = argparse.ArgumentParser()
     leParser.add_argument('--operation', help='What do you want MLB chat to do? (test|trades)')
     leParser.add_argument('--config', help='A JSON file with settings, credentials, etc.')
+    leParser.add_argument('--infile', help='An input file for some process')
     leParser.add_argument('--team', help='A Major League Baseball team, for example: Washington Nationals')
     lesArgs = leParser.parse_args()
   
@@ -81,6 +83,9 @@ def main(): # type: () -> None
 
     if lesArgs.operation == 'testmcp':
         asyncio.run(minimal_example())
+        
+    if lesArgs.operation == 'analyzetrades':
+        helpers.reportTradeCSV(lesArgs.infile)
 
 if __name__ == '__main__':
     main()
