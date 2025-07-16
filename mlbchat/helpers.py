@@ -182,26 +182,35 @@ def reportTradeCSV(
     fromTeamCounts = Counter()
     toTeamCounts = Counter()
     teamCounts = Counter()
+    player4player = Counter()
     
     for curtrade in trade_data:
         fromTeam = curtrade['Focus Team'].strip()
+        fromPlayers = curtrade['Player'].split(',')
+        toTeam = curtrade['To Team'].strip()
+        toPlayers = curtrade['Trade For'].split(',')
         if len(fromTeam) > 5:
             fromTeamCounts[fromTeam] += 1
             teamCounts[fromTeam] += 1
-        fromPlayers = curtrade['Player'].split(',')
         for curPlayer in fromPlayers:
             cleanPlayer = curPlayer.strip()
             if len(cleanPlayer) > 5:
                 playerCounts[cleanPlayer] += 1
-        toTeam = curtrade['To Team'].strip()
         if len(toTeam) > 5:
             toTeamCounts[toTeam] += 1
             teamCounts[toTeam] += 1
-        toPlayers = curtrade['Trade For'].split(',')
         for curPlayer in toPlayers:
             cleanPlayer = curPlayer.strip()
             if len(cleanPlayer) > 5:
                 playerCounts[cleanPlayer] += 1
+        for curFrom in fromPlayers:
+            cleanFrom = curFrom.strip()
+            for curTo in toPlayers:
+                cleanTo = curTo.strip()
+                if cleanFrom > cleanTo:
+                    player4player[cleanTo + '::' + cleanFrom] += 1
+                else:
+                    player4player[cleanFrom + '::' + cleanTo] += 1
         
     logger.info("Teams: ")
     logger.info(str(teamCounts.most_common()))
@@ -211,5 +220,7 @@ def reportTradeCSV(
     logger.info(str(toTeamCounts.most_common()))
     logger.info("Players: ")
     logger.info(str(playerCounts.most_common()))
-    
+    for curp4p in player4player.most_common():
+        if curp4p[1] > 1:
+            logger.info('Mutual suggestion: ' + str(curp4p[0]))
     
