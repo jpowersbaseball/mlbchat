@@ -22,10 +22,12 @@ import mlbchat.helpers as helpers
 
 # Get a list of current Claude models: https://docs.anthropic.com/en/docs/about-claude/models/overview
 
-async def minimal_example():
+async def minimal_example(
+mcpendpoint: str
+):
     """Ultra-minimal example - direct usage"""
     
-    async with sse_client("http://localhost:8080/mcp") as (read_stream, write_stream):
+    async with sse_client(mcpendpoint) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
             
@@ -35,7 +37,7 @@ async def minimal_example():
 
 def main(): # type: () -> None
     leParser = argparse.ArgumentParser()
-    leParser.add_argument('--operation', help='What do you want MLB chat to do? (test|trades)')
+    leParser.add_argument('--operation', help='What do you want MLB chat to do? (test|trades|testmcp|analyzetrades)')
     leParser.add_argument('--config', help='A JSON file with settings, credentials, etc.')
     leParser.add_argument('--infile', help='An input file for some process')
     leParser.add_argument('--team', help='A Major League Baseball team, for example: Washington Nationals')
@@ -82,7 +84,8 @@ def main(): # type: () -> None
         logger.info(bc.tools_trade(lesArgs.team, configs))
 
     if lesArgs.operation == 'testmcp':
-        asyncio.run(minimal_example())
+        if 'baseballmcp' in configs:
+            asyncio.run(minimal_example(configs['baseballmcp']['server']))
         
     if lesArgs.operation == 'analyzetrades':
         helpers.reportTradeCSV(lesArgs.infile)

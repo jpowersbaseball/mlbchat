@@ -47,6 +47,21 @@ operation (trades):
    python -m mlbchat --operation trades --config [[config.json]] --team "Washington Nationals"
 ```
 
+If you have an MCP server running, you can test the connection with:
+
+```bash
+   
+   python -m mlbchat --operation testmcp --config [[config.json]]
+```
+
+If you have built a set of proposed trades in the format found in docs/proposed_trades.xlsx,
+you can save one worksheet to CSV format (no BOM) and analyze it with:
+
+```bash
+   
+   python -m mlbchat --operation analyzetrades --infile proposed_trades.csv
+```
+
 
 ## Configuration
 
